@@ -5,11 +5,10 @@ import { selectStyle } from '../styles';
 const AnalogSelect = ({ value, onChange, options, placeholder = "Нет данных" }) => {
   return (
     <select value={value} onChange={onChange} style={selectStyle}>
-      {options.length ? (
-        options.map((opt) => <option key={opt} value={opt}>{opt}</option>)
-      ) : (
-        <option value="">{placeholder}</option>
-      )}
+      <option value="">{placeholder}</option>
+      {options.length > 0 && options.map((opt) => (
+        <option key={opt} value={opt}>{opt}</option>
+      ))}
     </select>
   );
 };

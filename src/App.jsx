@@ -1,5 +1,5 @@
 // App.js
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useResponsive } from './hooks/useResponsive';
 import { useAnalogCalculator } from './hooks/useAnalogCalculator';
 import AnalogInput from './components/AnalogInput';
@@ -41,6 +41,10 @@ import {
   getAnalogFlatConditionOptions,
   resolveBalconyRegionKey,
   calcFlatConditionMultiplier,
+  resolveFloorRegionKey,
+  resolveFloorFundGroupKey,
+  getEvalFloorOptions,
+  getAnalogFloorOptions,
   formatNumber
 } from './utils/calculations';
 
@@ -48,19 +52,39 @@ const App = () => {
   const { isMobile } = useResponsive();
 
   // --- Состояние настроек ---
-  const [selectedRegion, setSelectedRegion] = useState('Москва');
-  const [selectedFund, setSelectedFund] = useState('Старый фонд');
-  const [selectedLocationClass, setSelectedLocationClass] = useState('Культурный и исторический центр');
-  const [selectedEvalWall, setSelectedEvalWall] = useState('кирпичные стены');
-  const [selectedEvalHouseCondition, setSelectedEvalHouseCondition] = useState('хорошее');
-  const [selectedEvalFlatCondition, setSelectedEvalFlatCondition] = useState('типовой ремонт (отделка «стандарт»)');
-  const [selectedEvalBalcony, setSelectedEvalBalcony] = useState('есть');
+  const [selectedRegion, setSelectedRegion] = useState('');
+  const [selectedFund, setSelectedFund] = useState('');
+  const [selectedLocationClass, setSelectedLocationClass] = useState('');
+  const [selectedEvalWall, setSelectedEvalWall] = useState('');
+  const [selectedEvalHouseCondition, setSelectedEvalHouseCondition] = useState('');
+  const [selectedEvalFlatCondition, setSelectedEvalFlatCondition] = useState('');
+  const [selectedEvalBalcony, setSelectedEvalBalcony] = useState('');
+  const [selectedEvalFloor, setSelectedEvalFloor] = useState('');
 
   const [evaluatedAreaSqm, setEvaluatedAreaSqm] = useState(46.7);
 
+  // --- Эффекты для сброса зависимых полей ---
+  useEffect(() => {
+    // При изменении региона сбрасываем фонд и все зависимые поля
+    setSelectedFund('');
+    setSelectedLocationClass('');
+    setSelectedEvalWall('');
+    setSelectedEvalHouseCondition('');
+    setSelectedEvalFlatCondition('');
+    setSelectedEvalFloor('');
+  }, [selectedRegion]);
+
+  useEffect(() => {
+    // При изменении фонда сбрасываем зависимые поля
+    setSelectedLocationClass('');
+    setSelectedEvalWall('');
+    setSelectedEvalHouseCondition('');
+    setSelectedEvalFloor('');
+  }, [selectedFund]);
+
   // --- Используем хук для расчетов ---
   const { analogs, computed, totalUnits, weights, weightedAvgPerSqm, finalPriceThousand, fieldHandlers } = useAnalogCalculator(
-    evaluatedAreaSqm, selectedRegion, selectedFund, selectedEvalWall, selectedEvalHouseCondition, selectedEvalFlatCondition, selectedEvalBalcony, selectedLocationClass
+    evaluatedAreaSqm, selectedRegion, selectedFund, selectedEvalWall, selectedEvalHouseCondition, selectedEvalFlatCondition, selectedEvalBalcony, selectedEvalFloor, selectedLocationClass
   );
 
   // --- Вспомогательные вычисления для UI ---
@@ -87,6 +111,11 @@ const App = () => {
 
   const balconyRegionKey = useMemo(() => resolveBalconyRegionKey(selectedRegion), [selectedRegion]);
 
+  const floorRegionKey = useMemo(() => resolveFloorRegionKey(selectedRegion), [selectedRegion]);
+  const floorFundKey = useMemo(() => resolveFloorFundGroupKey(selectedFund), [selectedFund]);
+  const evalFloorOptions = useMemo(() => (floorRegionKey && floorFundKey ? getEvalFloorOptions(floorRegionKey, floorFundKey) : []), [floorRegionKey, floorFundKey]);
+  const analogFloorOptions = useMemo(() => (floorRegionKey && floorFundKey ? getAnalogFloorOptions(floorRegionKey, floorFundKey, selectedEvalFloor) : []), [floorRegionKey, floorFundKey, selectedEvalFloor]);
+
   // --- Рендер ---
   return (
     <div style={{...containerStyle, ...(isMobile ? mobileContainerStyle : {})}}>
@@ -94,7 +123,7 @@ const App = () => {
         Таблица оценки (сравнительный подход)
       </h1>
 
-      {/* Блок настроек */}
+      {/* Блок настроек объекта оценки*/}
       <div style={{ ...tableContainerStyle, padding: '16px' }}>
         <div style={{ marginBottom: 12 }}>
           <label style={{ display: 'block', marginBottom: 6, color: '#475569', fontWeight: 600 }}>Площадь оцениваемой квартиры (м²)</label>
@@ -112,6 +141,7 @@ const App = () => {
           <div>
             <label style={{ display: 'block', marginBottom: 6, color: '#475569', fontWeight: 600 }}>Регион</label>
             <select value={selectedRegion} onChange={(e) => setSelectedRegion(e.target.value)} style={selectStyle}>
+              <option value="">Выберите регион</option>
               {Object.keys(TRADE_DISCOUNTS).map((region) => (
                 <option key={region} value={region}>{region}</option>
               ))}
@@ -119,7 +149,8 @@ const App = () => {
           </div>
           <div>
             <label style={{ display: 'block', marginBottom: 6, color: '#475569', fontWeight: 600 }}>Фонд</label>
-            <select value={selectedFund} onChange={(e) => setSelectedFund(e.target.value)} style={selectStyle}>
+            <select value={selectedFund} onChange={(e) => setSelectedFund(e.target.value)} style={selectStyle} disabled={!selectedRegion}>
+              <option value="">{selectedRegion ? 'Выберите фонд' : 'Сначала выберите регион'}</option>
               {Object.keys(TRADE_DISCOUNTS[selectedRegion] || {}).map((fund) => (
                 <option key={fund} value={fund}>{fund}</option>
               ))}
@@ -134,6 +165,7 @@ const App = () => {
               value={selectedLocationClass}
               onChange={(e) => setSelectedLocationClass(e.target.value)}
               options={locationOptions}
+              placeholder={selectedRegion && selectedFund ? "Выберите класс местоположения" : "Сначала выберите регион и фонд"}
             />
           </div>
         </div>
@@ -143,6 +175,7 @@ const App = () => {
             value={selectedEvalWall}
             onChange={(e) => setSelectedEvalWall(e.target.value)}
             options={evalWallOptions}
+            placeholder={selectedRegion && selectedFund ? "Выберите материал стен" : "Сначала выберите регион и фонд"}
           />
         </div>
         <div style={{ marginTop: 12 }}>
@@ -151,6 +184,7 @@ const App = () => {
             value={selectedEvalHouseCondition}
             onChange={(e) => setSelectedEvalHouseCondition(e.target.value)}
             options={evalHouseConditionOptions}
+            placeholder={selectedRegion && selectedFund ? "Выберите техсостояние дома" : "Сначала выберите регион и фонд"}
           />
         </div>
         <div style={{ marginTop: 12 }}>
@@ -159,14 +193,25 @@ const App = () => {
             value={selectedEvalFlatCondition}
             onChange={(e) => setSelectedEvalFlatCondition(e.target.value)}
             options={evalFlatConditionOptions}
+            placeholder={selectedRegion ? "Выберите состояние отделки" : "Сначала выберите регион"}
           />
         </div>
         <div style={{ marginTop: 12 }}>
           <label style={{ display: 'block', marginBottom: 6, color: '#475569', fontWeight: 600 }}>Наличие балкона/лоджии у объекта оценки</label>
           <select value={selectedEvalBalcony} onChange={(e) => setSelectedEvalBalcony(e.target.value)} style={selectStyle}>
+            <option value="">Выберите наличие балкона</option>
             <option value="есть">есть</option>
             <option value="нет">нет</option>
           </select>
+        </div>
+        <div style={{ marginTop: 12 }}>
+          <label style={{ display: 'block', marginBottom: 6, color: '#475569', fontWeight: 600 }}>Этаж объекта оценки</label>
+          <AnalogSelect
+            value={selectedEvalFloor}
+            onChange={(e) => setSelectedEvalFloor(e.target.value)}
+            options={evalFloorOptions}
+            placeholder={selectedRegion && selectedFund ? "Выберите этаж" : "Сначала выберите регион и фонд"}
+          />
         </div>
       </div>
 
@@ -224,6 +269,7 @@ const App = () => {
                     value={a.__analogWall || ''}
                     onChange={(e) => fieldHandlers[i].__analogWall(e.target.value)}
                     options={analogWallOptions}
+                    placeholder={selectedRegion && selectedFund ? "Выберите материал стен" : "Сначала выберите регион и фонд"}
                   />
                 ))}
                 isMobile={isMobile}
@@ -236,6 +282,7 @@ const App = () => {
                     value={a.__analogHouseCondition || ''}
                     onChange={(e) => fieldHandlers[i].__analogHouseCondition(e.target.value)}
                     options={analogHouseConditionOptions}
+                    placeholder={selectedRegion && selectedFund ? "Выберите техсостояние дома" : "Сначала выберите регион и фонд"}
                   />
                 ))}
                 isMobile={isMobile}
@@ -248,6 +295,7 @@ const App = () => {
                     value={a.__analogFlatCondition || ''}
                     onChange={(e) => fieldHandlers[i].__analogFlatCondition(e.target.value)}
                     options={analogFlatConditionOptions}
+                    placeholder={selectedRegion ? "Выберите состояние отделки" : "Сначала выберите регион"}
                   />
                 ))}
                 isMobile={isMobile}
@@ -261,9 +309,23 @@ const App = () => {
                     onChange={(e) => fieldHandlers[i].__analogBalcony(e.target.value)}
                     style={selectStyle}
                   >
+                    <option value="">Выберите наличие балкона</option>
                     <option value="есть">есть</option>
                     <option value="нет">нет</option>
                   </select>
+                ))}
+                isMobile={isMobile}
+              />
+              <AnalogRow
+                label="Этаж аналога"
+                inputs={analogs.map((a, i) => (
+                  <AnalogSelect
+                    key={i}
+                    value={a.__analogFloor || ''}
+                    onChange={(e) => fieldHandlers[i].__analogFloor(e.target.value)}
+                    options={analogFloorOptions}
+                    placeholder={selectedRegion && selectedFund ? "Выберите этаж" : "Сначала выберите регион и фонд"}
+                  />
                 ))}
                 isMobile={isMobile}
               />

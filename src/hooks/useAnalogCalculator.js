@@ -20,9 +20,12 @@ import {
   calcFlatConditionMultiplier,
   resolveBalconyRegionKey,
   calcBalconyMultiplier,
+  resolveFloorRegionKey,
+  resolveFloorFundGroupKey,
+  calcFloorMultiplier,
 } from '../utils/calculations';
 
-export const useAnalogCalculator = (evaluatedAreaSqm, selectedRegion, selectedFund, selectedEvalWall, selectedEvalHouseCondition, selectedEvalFlatCondition, selectedEvalBalcony, selectedLocationClass) => {
+export const useAnalogCalculator = (evaluatedAreaSqm, selectedRegion, selectedFund, selectedEvalWall, selectedEvalHouseCondition, selectedEvalFlatCondition, selectedEvalBalcony, selectedEvalFloor, selectedLocationClass) => {
   const [analogs, setAnalogs] = useState([INITIAL_ANALOG, INITIAL_ANALOG, INITIAL_ANALOG]);
 
   // --- Вычисления ---
@@ -144,6 +147,28 @@ export const useAnalogCalculator = (evaluatedAreaSqm, selectedRegion, selectedFu
   }, [selectedRegion, selectedEvalBalcony, analogs.map(a => a.__analogBalcony || '').join('|')]);
 
   useEffect(() => {
+    const regionKey = resolveFloorRegionKey(selectedRegion);
+    const fundKey = resolveFloorFundGroupKey(selectedFund);
+    if (!regionKey || !fundKey) return;
+
+    setAnalogs(prev => {
+      let changed = false;
+      const next = prev.map(a => {
+        const analogFloor = a.__analogFloor;
+        if (!analogFloor) return a;
+        const m = calcFloorMultiplier(regionKey, fundKey, selectedEvalFloor, analogFloor);
+        if (m === null) return a;
+        if (a.adjFloors !== m) {
+          changed = true;
+          return { ...a, adjFloors: m };
+        }
+        return a;
+      });
+      return changed ? next : prev;
+    });
+  }, [selectedRegion, selectedFund, selectedEvalFloor, analogs.map(a => a.__analogFloor || '').join('|')]);
+
+  useEffect(() => {
     setAnalogs(prev => {
       let changed = false;
       const next = prev.map(a => {
@@ -235,6 +260,7 @@ export const useAnalogCalculator = (evaluatedAreaSqm, selectedRegion, selectedFu
         __analogHouseCondition: (value) => updateAnalog(i, '__analogHouseCondition', value),
         __analogFlatCondition: (value) => updateAnalog(i, '__analogFlatCondition', value),
         __analogBalcony: (value) => updateAnalog(i, '__analogBalcony', value),
+        __analogFloor: (value) => updateAnalog(i, '__analogFloor', value),
       };
     }
     return handlers;
