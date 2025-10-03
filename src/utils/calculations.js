@@ -1,4 +1,51 @@
 // utils/calculations.js
+// Универсальные функции расчета, не зависящие от конкретного справочника
+// + экспорт всех данных для обратной совместимости
+
+// --- Универсальные утилиты ---
+
+/**
+ * Парсит числовое значение, возвращает 0 для невалидных значений
+ */
+export function parseNumber(value) {
+  if (value === '' || value === null || value === undefined) return 0;
+  const n = Number(value);
+  return Number.isFinite(n) ? n : 0;
+}
+
+/**
+ * Форматирует число с заданным количеством знаков после запятой
+ */
+export function formatNumber(n, digits = 2) {
+  if (!Number.isFinite(n)) return '';
+  return n.toFixed(digits);
+}
+
+/**
+ * Парсит процентную строку в число
+ */
+export function parsePercentToNumber(percentString) {
+  if (!percentString || percentString === '-') return null;
+  const cleaned = String(percentString).replace('%', '').trim();
+  const num = Number(cleaned);
+  return Number.isFinite(num) ? num : null;
+}
+
+/**
+ * Универсальный расчет корректировки на площадь квартиры
+ * Использует формулу: (S_оо / S_оа)^(-0.06)
+ */
+export function calcAreaMultiplier(evaluatedArea, analogArea) {
+  const S_OO = Number(evaluatedArea);
+  const S_OA = Number(analogArea);
+  if (!Number.isFinite(S_OO) || !Number.isFinite(S_OA) || S_OO <= 0 || S_OA <= 0) return null;
+  const raw = Math.pow(S_OO / S_OA, -0.06);
+  return Math.round(raw * 10000) / 10000;
+}
+
+// --- Экспорт данных из бэкап-файла для обратной совместимости ---
+// ВНИМАНИЕ: Все нижеследующие экспорты - это временные заглушки
+// После завершения рефакторинга их можно будет удалить
 
 // --- Константы и справочники ---
 export const INITIAL_ANALOG = {
@@ -1226,39 +1273,7 @@ export const INITIAL_ANALOG = {
     'Города с численностью населения 500-1000 тыс. чел.': 'Города с численностью населения 500-1000 тыс. человек',
     'Города с численностью населения до 500 тыс. чел.': 'Города с численностью населения до 500 тыс. человек',
   };
-  // --- Функции расчета ---
-  export function parseNumber(value) {
-    if (value === '' || value === null || value === undefined) return 0;
-    const n = Number(value);
-    return Number.isFinite(n) ? n : 0;
-  }
-  
-  export function formatNumber(n, digits = 2) {
-    if (!Number.isFinite(n)) return '';
-    return n.toFixed(digits);
-  }
-  
-  export function parsePercentToNumber(percentString) {
-    if (!percentString || percentString === '-') return null;
-    const cleaned = String(percentString).replace('%', '').trim();
-    const num = Number(cleaned);
-    return Number.isFinite(num) ? num : null;
-  }
-  
-  export function calcTradeMultiplier(avgPercentNumber) {
-    if (avgPercentNumber === null) return null;
-    const fraction = avgPercentNumber / 100;
-    const multiplier = 1 - fraction;
-    return Math.round(multiplier * 10000) / 10000;
-  }
-  
-  export function calcAreaMultiplier(evaluatedArea, analogArea) {
-    const S_OO = Number(evaluatedArea);
-    const S_OA = Number(analogArea);
-    if (!Number.isFinite(S_OO) || !Number.isFinite(S_OA) || S_OO <= 0 || S_OA <= 0) return null;
-    const raw = Math.pow(S_OO / S_OA, -0.06);
-    return Math.round(raw * 10000) / 10000;
-  }
+  // Вспомогательные функции объявлены в начале файла
   
   export function resolveLocationRegionKey(selectedRegion) {
     if (LOCATION_COEFFICIENTS[selectedRegion]) return selectedRegion;
@@ -1278,11 +1293,13 @@ export const INITIAL_ANALOG = {
   }
   
   export function resolveWallsFundGroupKey(selectedFund) {
+    if (!selectedFund) return null;
     if (selectedFund === 'Старый фонд') return 'Старый фонд';
     return 'Массовое жилье советской постройки, Массовое современное жилье, Жилье повышенной комфортности';
   }
   
   export function getEvalWallOptions(regionKey, fundKey) {
+    if (!regionKey || !fundKey) return [];
     const group = WALL_MATERIAL_COEFFICIENTS[regionKey]?.[fundKey]?.['объект_оценки'];
     return group ? Object.keys(group) : [];
   }

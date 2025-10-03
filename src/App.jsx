@@ -1,4 +1,4 @@
-// App.js
+// src/App.jsx
 import React, { useState, useMemo, useEffect } from 'react';
 import { useResponsive } from './hooks/useResponsive';
 import { useAnalogCalculator } from './hooks/useAnalogCalculator';
@@ -23,35 +23,14 @@ import {
   sectionDividerStyle,
   noteStyle
 } from './styles';
-import {
-  TRADE_DISCOUNTS,
-  LOCATION_COEFFICIENTS,
-  resolveLocationRegionKey,
-  resolveLocationFundGroupKey,
-  resolveWallsRegionKey,
-  resolveWallsFundGroupKey,
-  getEvalWallOptions,
-  getAnalogWallOptions,
-  resolveHouseConditionRegionKey,
-  resolveHouseConditionFundGroupKey,
-  getEvalHouseConditionOptions,
-  getAnalogHouseConditionOptions,
-  resolveFlatConditionRegionKey,
-  getEvalFlatConditionOptions,
-  getAnalogFlatConditionOptions,
-  resolveBalconyRegionKey,
-  calcFlatConditionMultiplier,
-  resolveFloorRegionKey,
-  resolveFloorFundGroupKey,
-  getEvalFloorOptions,
-  getAnalogFloorOptions,
-  formatNumber
-} from './utils/calculations';
+// Импортируем систему справочников
+import { DATA_SOURCES, getDefaultHandbookId, getAvailableHandbooks } from './data/dataSources';
 
 const App = () => {
   const { isMobile } = useResponsive();
 
   // --- Состояние настроек ---
+  const [selectedHandbookId, setSelectedHandbookId] = useState(getDefaultHandbookId());
   const [selectedRegion, setSelectedRegion] = useState('');
   const [selectedFund, setSelectedFund] = useState('');
   const [selectedLocationClass, setSelectedLocationClass] = useState('');
@@ -60,10 +39,25 @@ const App = () => {
   const [selectedEvalFlatCondition, setSelectedEvalFlatCondition] = useState('');
   const [selectedEvalBalcony, setSelectedEvalBalcony] = useState('');
   const [selectedEvalFloor, setSelectedEvalFloor] = useState('');
-
   const [evaluatedAreaSqm, setEvaluatedAreaSqm] = useState(46.7);
 
+  // Получаем текущий справочник
+  const currentHandbook = DATA_SOURCES[selectedHandbookId];
+  const availableHandbooks = getAvailableHandbooks();
+
   // --- Эффекты для сброса зависимых полей ---
+  useEffect(() => {
+    // При изменении справочника сбрасываем регион и все зависимые поля
+    setSelectedRegion('');
+    setSelectedFund('');
+    setSelectedLocationClass('');
+    setSelectedEvalWall('');
+    setSelectedEvalHouseCondition('');
+    setSelectedEvalFlatCondition('');
+    setSelectedEvalBalcony('');
+    setSelectedEvalFloor('');
+  }, [selectedHandbookId]); // Обновлена зависимость
+
   useEffect(() => {
     // При изменении региона сбрасываем фонд и все зависимые поля
     setSelectedFund('');
@@ -84,37 +78,36 @@ const App = () => {
 
   // --- Используем хук для расчетов ---
   const { analogs, computed, totalUnits, weights, weightedAvgPerSqm, finalPriceThousand, fieldHandlers } = useAnalogCalculator(
-    evaluatedAreaSqm, selectedRegion, selectedFund, selectedEvalWall, selectedEvalHouseCondition, selectedEvalFlatCondition, selectedEvalBalcony, selectedEvalFloor, selectedLocationClass
+    evaluatedAreaSqm, selectedRegion, selectedFund, selectedEvalWall, selectedEvalHouseCondition, selectedEvalFlatCondition, selectedEvalBalcony, selectedEvalFloor, selectedLocationClass, currentHandbook
   );
 
   // --- Вспомогательные вычисления для UI ---
-  const locationRegionKey = useMemo(() => resolveLocationRegionKey(selectedRegion), [selectedRegion]);
-  const locationFundKey = useMemo(() => resolveLocationFundGroupKey(selectedFund), [selectedFund]);
+  const locationRegionKey = useMemo(() => currentHandbook?.logic.resolveLocationRegionKey(selectedRegion), [selectedRegion, currentHandbook]);
+  const locationFundKey = useMemo(() => currentHandbook?.logic.resolveLocationFundGroupKey(selectedFund), [selectedFund, currentHandbook]);
   const locationOptions = useMemo(() => {
-    const group = locationRegionKey ? LOCATION_COEFFICIENTS[locationRegionKey]?.[locationFundKey] : null;
+    const group = locationRegionKey ? currentHandbook?.data.LOCATION_COEFFICIENTS[locationRegionKey]?.[locationFundKey] : null;
     return group ? Object.keys(group) : [];
-  }, [locationRegionKey, locationFundKey]);
+  }, [locationRegionKey, locationFundKey, currentHandbook]);
 
-  const wallsRegionKey = useMemo(() => resolveWallsRegionKey(selectedRegion), [selectedRegion]);
-  const wallsFundKey = useMemo(() => resolveWallsFundGroupKey(selectedFund), [selectedFund]);
-  const evalWallOptions = useMemo(() => (wallsRegionKey && wallsFundKey ? getEvalWallOptions(wallsRegionKey, wallsFundKey) : []), [wallsRegionKey, wallsFundKey]);
-  const analogWallOptions = useMemo(() => (wallsRegionKey && wallsFundKey ? getAnalogWallOptions(wallsRegionKey, wallsFundKey, selectedEvalWall) : []), [wallsRegionKey, wallsFundKey, selectedEvalWall]);
+  const wallsRegionKey = useMemo(() => currentHandbook?.logic.resolveWallsRegionKey(selectedRegion), [selectedRegion, currentHandbook]);
+  const wallsFundKey = useMemo(() => currentHandbook?.logic.resolveWallsFundGroupKey(selectedFund), [selectedFund, currentHandbook]);
+  const evalWallOptions = useMemo(() => (wallsRegionKey && wallsFundKey ? currentHandbook?.logic.getEvalWallOptions(wallsRegionKey, wallsFundKey) : []), [wallsRegionKey, wallsFundKey, currentHandbook]);
+  const analogWallOptions = useMemo(() => (wallsRegionKey && wallsFundKey ? currentHandbook?.logic.getAnalogWallOptions(wallsRegionKey, wallsFundKey, selectedEvalWall) : []), [wallsRegionKey, wallsFundKey, selectedEvalWall, currentHandbook]);
 
-  const houseConditionRegionKey = useMemo(() => resolveHouseConditionRegionKey(selectedRegion), [selectedRegion]);
-  const houseConditionFundKey = useMemo(() => resolveHouseConditionFundGroupKey(selectedFund), [selectedFund]);
-  const evalHouseConditionOptions = useMemo(() => (houseConditionRegionKey && houseConditionFundKey ? getEvalHouseConditionOptions(houseConditionRegionKey, houseConditionFundKey) : []), [houseConditionRegionKey, houseConditionFundKey]);
-  const analogHouseConditionOptions = useMemo(() => (houseConditionRegionKey && houseConditionFundKey ? getAnalogHouseConditionOptions(houseConditionRegionKey, houseConditionFundKey, selectedEvalHouseCondition) : []), [houseConditionRegionKey, houseConditionFundKey, selectedEvalHouseCondition]);
+  const houseConditionRegionKey = useMemo(() => currentHandbook?.logic.resolveHouseConditionRegionKey(selectedRegion), [selectedRegion, currentHandbook]);
+  const houseConditionFundKey = useMemo(() => currentHandbook?.logic.resolveHouseConditionFundGroupKey(selectedFund), [selectedFund, currentHandbook]);
+  const evalHouseConditionOptions = useMemo(() => (houseConditionRegionKey && houseConditionFundKey ? currentHandbook?.logic.getEvalHouseConditionOptions(houseConditionRegionKey, houseConditionFundKey) : []), [houseConditionRegionKey, houseConditionFundKey, currentHandbook]);
+  const analogHouseConditionOptions = useMemo(() => (houseConditionRegionKey && houseConditionFundKey ? currentHandbook?.logic.getAnalogHouseConditionOptions(houseConditionRegionKey, houseConditionFundKey, selectedEvalHouseCondition) : []), [houseConditionRegionKey, houseConditionFundKey, selectedEvalHouseCondition, currentHandbook]);
 
-  const flatConditionRegionKey = useMemo(() => resolveFlatConditionRegionKey(selectedRegion), [selectedRegion]);
-  const evalFlatConditionOptions = useMemo(() => (flatConditionRegionKey ? getEvalFlatConditionOptions(flatConditionRegionKey) : []), [flatConditionRegionKey]);
-  const analogFlatConditionOptions = useMemo(() => (flatConditionRegionKey ? getAnalogFlatConditionOptions(flatConditionRegionKey, selectedEvalFlatCondition) : []), [flatConditionRegionKey, selectedEvalFlatCondition]);
+  const flatConditionRegionKey = useMemo(() => currentHandbook?.logic.resolveFlatConditionRegionKey(selectedRegion), [selectedRegion, currentHandbook]);
+  const evalFlatConditionOptions = useMemo(() => (flatConditionRegionKey ? currentHandbook?.logic.getEvalFlatConditionOptions(flatConditionRegionKey) : []), [flatConditionRegionKey, currentHandbook]);
+  const analogFlatConditionOptions = useMemo(() => (flatConditionRegionKey ? currentHandbook?.logic.getAnalogFlatConditionOptions(flatConditionRegionKey, selectedEvalFlatCondition) : []), [flatConditionRegionKey, selectedEvalFlatCondition, currentHandbook]);
 
-  const balconyRegionKey = useMemo(() => resolveBalconyRegionKey(selectedRegion), [selectedRegion]);
-
-  const floorRegionKey = useMemo(() => resolveFloorRegionKey(selectedRegion), [selectedRegion]);
-  const floorFundKey = useMemo(() => resolveFloorFundGroupKey(selectedFund), [selectedFund]);
-  const evalFloorOptions = useMemo(() => (floorRegionKey && floorFundKey ? getEvalFloorOptions(floorRegionKey, floorFundKey) : []), [floorRegionKey, floorFundKey]);
-  const analogFloorOptions = useMemo(() => (floorRegionKey && floorFundKey ? getAnalogFloorOptions(floorRegionKey, floorFundKey, selectedEvalFloor) : []), [floorRegionKey, floorFundKey, selectedEvalFloor]);
+  const balconyRegionKey = useMemo(() => currentHandbook?.logic.resolveBalconyRegionKey(selectedRegion), [selectedRegion, currentHandbook]);
+  const floorRegionKey = useMemo(() => currentHandbook?.logic.resolveFloorRegionKey(selectedRegion), [selectedRegion, currentHandbook]);
+  const floorFundKey = useMemo(() => currentHandbook?.logic.resolveFloorFundGroupKey(selectedFund), [selectedFund, currentHandbook]);
+  const evalFloorOptions = useMemo(() => (floorRegionKey && floorFundKey ? currentHandbook?.logic.getEvalFloorOptions(floorRegionKey, floorFundKey) : []), [floorRegionKey, floorFundKey, currentHandbook]);
+  const analogFloorOptions = useMemo(() => (floorRegionKey && floorFundKey ? currentHandbook?.logic.getAnalogFloorOptions(floorRegionKey, floorFundKey, selectedEvalFloor) : []), [floorRegionKey, floorFundKey, selectedEvalFloor, currentHandbook]);
 
   // --- Рендер ---
   return (
@@ -122,9 +115,18 @@ const App = () => {
       <h1 style={{...headerStyle, ...(isMobile ? mobileHeaderStyle : {})}}>
         Таблица оценки (сравнительный подход)
       </h1>
-
-      {/* Блок настроек объекта оценки*/}
+      {/* Блок настроек объекта оценки */}
       <div style={{ ...tableContainerStyle, padding: '16px' }}>
+        {/* Выбор справочника */}
+        <div style={{ marginBottom: 12 }}>
+          <label style={{ display: 'block', marginBottom: 6, color: '#475569', fontWeight: 600 }}>Справочник</label>
+          <select value={selectedHandbookId} onChange={(e) => setSelectedHandbookId(e.target.value)} style={selectStyle}>
+            {availableHandbooks.map((handbook) => (
+              <option key={handbook.id} value={handbook.id}>{handbook.name}</option>
+            ))}
+          </select>
+        </div>
+
         <div style={{ marginBottom: 12 }}>
           <label style={{ display: 'block', marginBottom: 6, color: '#475569', fontWeight: 600 }}>Площадь оцениваемой квартиры (м²)</label>
           <input
@@ -140,9 +142,9 @@ const App = () => {
         <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr 1fr', gap: '12px' }}>
           <div>
             <label style={{ display: 'block', marginBottom: 6, color: '#475569', fontWeight: 600 }}>Регион</label>
-            <select value={selectedRegion} onChange={(e) => setSelectedRegion(e.target.value)} style={selectStyle}>
-              <option value="">Выберите регион</option>
-              {Object.keys(TRADE_DISCOUNTS).map((region) => (
+            <select value={selectedRegion} onChange={(e) => setSelectedRegion(e.target.value)} style={selectStyle} disabled={!currentHandbook}>
+              <option value="">{currentHandbook ? 'Выберите регион' : 'Справочник не выбран'}</option>
+              {Object.keys(currentHandbook?.data.TRADE_DISCOUNTS || {}).map((region) => (
                 <option key={region} value={region}>{region}</option>
               ))}
             </select>
@@ -151,7 +153,7 @@ const App = () => {
             <label style={{ display: 'block', marginBottom: 6, color: '#475569', fontWeight: 600 }}>Фонд</label>
             <select value={selectedFund} onChange={(e) => setSelectedFund(e.target.value)} style={selectStyle} disabled={!selectedRegion}>
               <option value="">{selectedRegion ? 'Выберите фонд' : 'Сначала выберите регион'}</option>
-              {Object.keys(TRADE_DISCOUNTS[selectedRegion] || {}).map((fund) => (
+              {Object.keys(currentHandbook?.data.TRADE_DISCOUNTS[selectedRegion] || {}).map((fund) => (
                 <option key={fund} value={fund}>{fund}</option>
               ))}
             </select>
@@ -214,7 +216,6 @@ const App = () => {
           />
         </div>
       </div>
-
       {/* Основная таблица */}
       <div style={tableContainerStyle}>
         <div style={{ overflowX: 'auto' }}>
@@ -341,7 +342,7 @@ const App = () => {
                     borderRadius: '4px',
                     border: '1px solid #bbf7d0',
                   }}>
-                    {formatNumber(c.pricePerSqm)}
+                    {currentHandbook?.logic.formatNumber(c.pricePerSqm)}
                   </span>
                 ))}
                 isHighlight={true}
@@ -373,7 +374,7 @@ const App = () => {
                       step="0.0001"
                       placeholder="1.0000"
                       onChange={fieldHandlers[i][row.field]}
-                      resultValue={formatNumber(computed[i].steps.find(s => s.key === row.field)?.value)}
+                      resultValue={currentHandbook?.logic.formatNumber(computed[i].steps.find(s => s.key === row.field)?.value)}
                       label="="
                       isMobile={isMobile}
                     />
@@ -384,8 +385,8 @@ const App = () => {
               <AnalogRow
                 label="Корректировка на техническое состояние квартиры"
                 inputs={analogs.map((a, i) => {
-                  const m = balconyRegionKey ? calcFlatConditionMultiplier(balconyRegionKey, selectedEvalFlatCondition, a.__analogFlatCondition) : null;
-                  const resultValue = formatNumber(computed[i].steps.find(s => s.key === 'flatCondition')?.value);
+                  const m = balconyRegionKey ? currentHandbook?.logic.calcFlatConditionMultiplier(balconyRegionKey, selectedEvalFlatCondition, a.__analogFlatCondition) : null;
+                  const resultValue = currentHandbook?.logic.formatNumber(computed[i].steps.find(s => s.key === 'flatCondition')?.value);
                   return (
                     <div key={i} style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                       <AnalogInput
@@ -417,7 +418,7 @@ const App = () => {
                     borderRadius: '4px',
                     border: '1px solid #bbf7d0',
                   }}>
-                    {formatNumber(c.finalAdjustedPerSqm)}
+                    {currentHandbook?.logic.formatNumber(c.finalAdjustedPerSqm)}
                   </span>
                 ))}
                 isResult={true}
@@ -449,7 +450,7 @@ const App = () => {
                     borderRadius: '4px',
                     border: '1px solid #bbf7d0',
                   }}>
-                    {formatNumber(totalUnits, 0)}
+                    {currentHandbook?.logic.formatNumber(totalUnits, 0)}
                   </span>
                 ]}
                 colSpan={3}
@@ -468,7 +469,7 @@ const App = () => {
                     borderRadius: '4px',
                     border: '1px solid #bbf7d0',
                   }}>
-                    {formatNumber(w, 4)}
+                    {currentHandbook?.logic.formatNumber(w, 4)}
                   </span>
                 ))}
                 isMobile={isMobile}
@@ -485,7 +486,7 @@ const App = () => {
                     borderRadius: '4px',
                     border: '1px solid #bbf7d0',
                   }}>
-                    {formatNumber(c.finalAdjustedPerSqm * (weights[i] || 0))}
+                    {currentHandbook?.logic.formatNumber(c.finalAdjustedPerSqm * (weights[i] || 0))}
                   </span>
                 ))}
                 isMobile={isMobile}
@@ -502,7 +503,7 @@ const App = () => {
                     borderRadius: '4px',
                     border: '1px solid #bbf7d0',
                   }}>
-                    {formatNumber(weightedAvgPerSqm)}
+                    {currentHandbook?.logic.formatNumber(weightedAvgPerSqm)}
                   </span>
                 ]}
                 colSpan={3}
@@ -514,7 +515,7 @@ const App = () => {
               </tr>
               <ResultRow
                 label="Итоговая стоимость квартиры (тыс. руб.)"
-                value={formatNumber(finalPriceThousand)}
+                value={currentHandbook?.logic.formatNumber(finalPriceThousand)}
                 colSpan={3}
                 isMobile={isMobile}
               />
