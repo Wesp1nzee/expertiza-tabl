@@ -2,7 +2,6 @@
 // Универсальные функции расчета, не зависящие от конкретного справочника
 // + экспорт всех данных для обратной совместимости
 
-// --- Универсальные утилиты ---
 /**
  * Парсит числовое значение, возвращает 0 для невалидных значений
  */
@@ -1083,8 +1082,6 @@ export function calcWallsMultiplier(fundKey, evalWall, analogWall) {
   const value = AVERAGE_WALL_MATERIAL_COEFFICIENTS[fundKey]?.[evalWall]?.[analogWall];
   return Number.isFinite(value) ? Math.round(value * 10000) / 10000 : null;
 }
-
-// === ОСТАЛЬНЫЕ ФУНКЦИИ (БЕЗ ИЗМЕНЕНИЙ) ===
 
 export function resolveLocationRegionKey(selectedRegion) {
   if (LOCATION_COEFFICIENTS[selectedRegion]) return selectedRegion;

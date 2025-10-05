@@ -50,6 +50,10 @@ import {
   getEvalFloorOptions,
   getAnalogFloorOptions,
   formatNumber,
+  calcHouseConditionMultiplier,
+  calcFloorMultiplier,
+  parseNumber,
+  calcAreaMultiplier
 } from './utils/calculations';
 
 const App = () => {
@@ -146,6 +150,7 @@ const App = () => {
 
   // - Используем хук для расчетов -
   const { computed, totalUnits, weights, weightedAvgPerSqm, finalPriceThousand} = useAnalogCalculator(
+    analogs,
     evaluatedAreaSqm,
     selectedRegion,
     selectedFund,
@@ -307,6 +312,25 @@ const App = () => {
       return changed ? next : prev;
     });
   }, [selectedRegion, selectedFund, selectedEvalFloor, analogs.map(a => a.__analogFloor || '').join('|')]);
+
+    useEffect(() => {
+    setAnalogs(prev => {
+      let changed = false;
+      const next = prev.map(a => {
+        const analogArea = parseNumber(a.areaSqm); // Используем parseNumber для безопасности
+        const evaluatedArea = parseNumber(evaluatedAreaSqm); // Используем parseNumber для безопасности
+        const m = calcAreaMultiplier(evaluatedArea, analogArea); // Вызываем функцию расчета
+        if (m === null) return a; // Если расчет невозможен (например, одна из площадей 0), не меняем
+        if (a.adjArea !== m) { // Если рассчитанное значение отличается от текущего
+          changed = true; // Отмечаем, что массив изменился
+          return { ...a, adjArea: m }; // Создаем новый объект с обновленным adjArea
+        }
+        return a; // Возвращаем объект без изменений
+      });
+      return changed ? next : prev; // Обновляем состояние только если были изменения
+    });
+  }, [evaluatedAreaSqm, analogs.map(a => a.areaSqm).join(',')]); // Зависимости: изменение площади оценки или площадей аналогов запускает эффект
+
 
   return (
     <div style={isMobile ? mobileContainerStyle : containerStyle}>
@@ -537,17 +561,17 @@ const App = () => {
               <td colSpan={4} style={sectionDividerStyle}></td>
             </tr>
             {[
-              { field: 'adjRights', label: 'Корректировка на права (1)' },
-              { field: 'adjFinance', label: 'Корректировка на финансовые условия (1)' },
-              { field: 'adjSaleDate', label: 'Корректировка на дату продажи (1)' },
-              { field: 'adjTrade', label: 'Корректировка на торги (1)' },
-              { field: 'adjLocation', label: 'Корректировка на местоположение (1)' },
-              { field: 'adjArea', label: 'Корректировка на площадь (1)' },
-              { field: 'adjWalls', label: 'Корректировка на материал стен (1)' },
-              { field: 'adjCommunications', label: 'Корректировка на коммуникации (1)' },
-              { field: 'adjHouseCondition', label: 'Корректировка на техсостояние дома (1)' },
-              { field: 'adjFloors', label: 'Корректировка на этажность (1)' },
-              { field: 'adjBalcony', label: 'Корректировка на балкон/лоджию (1)' },
+              { field: 'adjRights', label: 'Корректировка на права КОНСТАНТА' },
+              { field: 'adjFinance', label: 'Корректировка на финансовые условия КОНСТАНТА' },
+              { field: 'adjSaleDate', label: 'Корректировка на дату продажи КОНСТАНТА' },
+              { field: 'adjTrade', label: 'Корректировка на торги КОНСТАНТА' },
+              { field: 'adjLocation', label: 'Корректировка на местоположение ' },
+              { field: 'adjArea', label: 'Корректировка на площадь ' },
+              { field: 'adjWalls', label: 'Корректировка на материал стен ' },
+              { field: 'adjCommunications', label: 'Корректировка на коммуникации ' },
+              { field: 'adjHouseCondition', label: 'Корректировка на техсостояние дома ' },
+              { field: 'adjFloors', label: 'Корректировка на этажность ' },
+              { field: 'adjBalcony', label: 'Корректировка на балкон/лоджию ' },
             ].map((row) => (
               <AnalogRow
                 key={row.field}
@@ -591,6 +615,25 @@ const App = () => {
             <tr>
               <td colSpan={4} style={sectionDividerStyle}></td>
             </tr>
+            <AnalogRow
+              label="Количество единиц"
+              inputs={analogs.map((a, i) => {
+                return (
+                  <div key={i} style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                    <AnalogInput
+                      value={a.adjFlatCondition}
+                      step="1"
+                      placeholder="1.0000"
+                      onChange={fieldHandlers[i].adjFlatCondition}
+                      resultValue="0"
+                      label="="
+                      isMobile={isMobile}
+                    />
+                  </div>
+                );
+              })}
+              isMobile={isMobile}
+            />
             <AnalogRow
               label="Вес аналога"
               inputs={weights.map((w, i) => (

@@ -1,14 +1,11 @@
 // src/hooks/useAnalogCalculator.js
-import { useState, useMemo, useCallback, useEffect } from 'react';
-
+import { useMemo } from 'react'; // useEffect и useState больше не нужны внутри хука
 import {
-  INITIAL_ANALOG,
-  TRADE_DISCOUNTS,
-  LOCATION_COEFFICIENTS,
-  parseNumber,
+  // Остальные импорты остаются теми же
+  parseNumber, // <-- Добавлено для calcAreaMultiplier
   parsePercentToNumber,
   calcTradeMultiplier,
-  calcAreaMultiplier,
+  calcAreaMultiplier, // <-- Импортируем функцию
   resolveLocationRegionKey,
   resolveLocationFundGroupKey,
   calcWallsMultiplier,
@@ -23,9 +20,13 @@ import {
   resolveFloorRegionKey,
   resolveFloorFundGroupKey,
   calcFloorMultiplier,
+  TRADE_DISCOUNTS, // <-- Импортируем статически
+  LOCATION_COEFFICIENTS, // <-- Импортируем статически
 } from '../utils/calculations';
 
 export const useAnalogCalculator = (
+  // Добавляем 'analogs' как аргумент
+  analogs, // <-- Новый аргумент
   evaluatedAreaSqm,
   selectedRegion,
   selectedFund,
@@ -36,20 +37,17 @@ export const useAnalogCalculator = (
   selectedEvalFloor,
   selectedLocationClass
 ) => {
-  const [analogs, setAnalogs] = useState([
-    { ...INITIAL_ANALOG },
-    { ...INITIAL_ANALOG },
-    { ...INITIAL_ANALOG },
-  ]);
+  // Внутреннее состояние 'analogs' удаляется
+  // const [analogs, setAnalogs] = useState([...]); // <-- УДАЛЕНО
 
-  // - Вычисления -
+  // Вычисления остаются теми же, но теперь они зависят от переданного 'analogs'
+
   const tradeAvgPercent = useMemo(() => {
+    // Используем статически импортированные TRADE_DISCOUNTS
     const regionData = TRADE_DISCOUNTS[selectedRegion];
     if (!regionData) return null;
-
     const fundData = regionData[selectedFund];
     if (!fundData) return null;
-
     return parsePercentToNumber(fundData);
   }, [selectedRegion, selectedFund]);
 
@@ -61,171 +59,36 @@ export const useAnalogCalculator = (
   const locationRegionKey = resolveLocationRegionKey(selectedRegion);
   const locationFundKey = resolveLocationFundGroupKey(selectedFund);
   const locationMultiplier = useMemo(() => {
+    // Используем статически импортированные LOCATION_COEFFICIENTS
     if (!locationRegionKey || !locationFundKey || !selectedLocationClass) return null;
-
     const value = LOCATION_COEFFICIENTS[locationRegionKey]?.[locationFundKey]?.[selectedLocationClass];
     return Number.isFinite(value) ? Math.round(value * 10000) / 10000 : null;
   }, [locationRegionKey, locationFundKey, selectedLocationClass]);
 
-  // - Автоматические корректировки -
-  useEffect(() => {
-    if (tradeMultiplier !== null) {
-      setAnalogs(prev => prev.map(a => ({ ...a, adjTrade: tradeMultiplier })));
-    }
-  }, [tradeMultiplier]);
-
-  useEffect(() => {
-    if (locationMultiplier !== null) {
-      setAnalogs(prev => prev.map(a => ({ ...a, adjLocation: locationMultiplier })));
-    }
-  }, [locationMultiplier]);
-
-  useEffect(() => {
-    const fundKey = resolveWallFundGroupKey(selectedFund);
-    if (!fundKey) return;
-
-    setAnalogs(prev => {
-      let changed = false;
-      const next = prev.map(a => {
-        const analogWall = a.__analogWall;
-        if (!analogWall) return a;
-        const m = calcWallsMultiplier(fundKey, selectedEvalWall, analogWall);
-        if (m === null) return a;
-        if (a.adjWalls !== m) {
-          changed = true;
-          return { ...a, adjWalls: m };
-        }
-        return a;
-      });
-      return changed ? next : prev;
-    });
-  }, [selectedFund, selectedEvalWall, analogs.map(a => a.__analogWall || '').join('|')]);
-
-  useEffect(() => {
-    const regionKey = resolveHouseConditionRegionKey(selectedRegion);
-    const fundKey = resolveHouseConditionFundGroupKey(selectedFund);
-    if (!regionKey || !fundKey) return;
-
-    setAnalogs(prev => {
-      let changed = false;
-      const next = prev.map(a => {
-        const analogCondition = a.__analogHouseCondition;
-        if (!analogCondition) return a;
-        const m = calcHouseConditionMultiplier(regionKey, fundKey, selectedEvalHouseCondition, analogCondition);
-        if (m === null) return a;
-        if (a.adjHouseCondition !== m) {
-          changed = true;
-          return { ...a, adjHouseCondition: m };
-        }
-        return a;
-      });
-      return changed ? next : prev;
-    });
-  }, [selectedRegion, selectedFund, selectedEvalHouseCondition, analogs.map(a => a.__analogHouseCondition || '').join('|')]);
-
-  useEffect(() => {
-    const regionKey = resolveFlatConditionRegionKey(selectedRegion);
-    if (!regionKey) return;
-
-    setAnalogs(prev => {
-      let changed = false;
-      const next = prev.map(a => {
-        const analogCondition = a.__analogFlatCondition;
-        if (!analogCondition) return a;
-        const m = calcFlatConditionMultiplier(regionKey, selectedEvalFlatCondition, analogCondition);
-        if (m === null) return a;
-        if (a.adjFlatCondition !== m) {
-          changed = true;
-          return { ...a, adjFlatCondition: m };
-        }
-        return a;
-      });
-      return changed ? next : prev;
-    });
-  }, [selectedRegion, selectedEvalFlatCondition, analogs.map(a => a.__analogFlatCondition || '').join('|')]);
-
-  useEffect(() => {
-    const balconyRegionKey = resolveBalconyRegionKey(selectedRegion);
-    if (!balconyRegionKey) return;
-
-    setAnalogs(prev => {
-      let changed = false;
-      const next = prev.map(a => {
-        const analogBalcony = a.__analogBalcony;
-        if (analogBalcony !== 'есть' && analogBalcony !== 'нет') return a;
-        const m = calcBalconyMultiplier(balconyRegionKey, selectedEvalBalcony === 'есть', analogBalcony === 'есть');
-        if (m === null) return a;
-        if (a.adjBalcony !== m) {
-          changed = true;
-          return { ...a, adjBalcony: m };
-        }
-        return a;
-      });
-      return changed ? next : prev;
-    });
-  }, [selectedRegion, selectedEvalBalcony, analogs.map(a => a.__analogBalcony || '').join('|')]);
-
-  useEffect(() => {
-    const regionKey = resolveFloorRegionKey(selectedRegion);
-    const fundKey = resolveFloorFundGroupKey(selectedFund);
-    if (!regionKey || !fundKey) return;
-
-    setAnalogs(prev => {
-      let changed = false;
-      const next = prev.map(a => {
-        const analogFloor = a.__analogFloor;
-        if (!analogFloor) return a;
-        const m = calcFloorMultiplier(regionKey, fundKey, selectedEvalFloor, analogFloor);
-        if (m === null) return a;
-        if (a.adjFloors !== m) {
-          changed = true;
-          return { ...a, adjFloors: m };
-        }
-        return a;
-      });
-      return changed ? next : prev;
-    });
-  }, [selectedRegion, selectedFund, selectedEvalFloor, analogs.map(a => a.__analogFloor || '').join('|')]);
-
-  useEffect(() => {
-    setAnalogs(prev => {
-      let changed = false;
-      const next = prev.map(a => {
-        const m = calcAreaMultiplier(evaluatedAreaSqm, parseNumber(a.areaSqm));
-        if (m === null) return a;
-        if (a.adjArea !== m) {
-          changed = true;
-          return { ...a, adjArea: m };
-        }
-        return a;
-      });
-      return changed ? next : prev;
-    });
-  }, [evaluatedAreaSqm, analogs.map(a => a.areaSqm).join(',')]);
-
-  // - Результаты -
+  // --- Результаты (вычисления на основе переданного 'analogs') ---
   const computed = useMemo(() => {
+    // Теперь используем переданный 'analogs'
     return analogs.map((a) => {
       const priceOffer = parseNumber(a.priceOfferThousand);
       const area = parseNumber(a.areaSqm);
+      // Обратите внимание: расчет pricePerSqm теперь будет корректным, так как a.priceOfferThousand и a.areaSqm обновляются в App.jsx
       const pricePerSqm = area > 0 ? priceOffer / area : 0;
       const steps = [];
       let current = pricePerSqm;
 
-      // Применяем все корректировки
       const adjustments = [
         { key: 'rights', label: 'Права (1)', value: a.adjRights },
         { key: 'finance', label: 'Финансовые условия (1)', value: a.adjFinance },
         { key: 'saleDate', label: 'Дата продажи (1)', value: a.adjSaleDate },
-        { key: 'trade', label: 'Торги (1)', value: a.adjTrade },
-        { key: 'location', label: 'Местоположение (1)', value: a.adjLocation },
-        { key: 'area', label: 'Площадь (1)', value: a.adjArea },
-        { key: 'walls', label: 'Материал стен (1)', value: a.adjWalls },
+        { key: 'trade', label: 'Торги (1)', value: a.adjTrade || tradeMultiplier }, // Используем вычисленный multiplier, если не установлен вручную
+        { key: 'location', label: 'Местоположение (1)', value: a.adjLocation || locationMultiplier }, // Используем вычисленный multiplier, если не установлен вручную
+        { key: 'area', label: 'Площадь (1)', value: a.adjArea }, // <-- Теперь берётся из переданного analogs
+        { key: 'walls', label: 'Материал стен (1)', value: a.adjWalls }, // <-- Теперь берётся из переданного analogs
         { key: 'communications', label: 'Коммуникации (1)', value: a.adjCommunications },
-        { key: 'houseCondition', label: 'Техсостояние дома (1)', value: a.adjHouseCondition },
-        { key: 'floors', label: 'Этажность (1)', value: a.adjFloors },
-        { key: 'flatCondition', label: 'Состояние отделки (1)', value: a.adjFlatCondition },
-        { key: 'balcony', label: 'Балкон/лоджия (1)', value: a.adjBalcony },
+        { key: 'houseCondition', label: 'Техсостояние дома (1)', value: a.adjHouseCondition }, // <-- Теперь берётся из переданного analogs
+        { key: 'floors', label: 'Этажность (1)', value: a.adjFloors }, // <-- Теперь берётся из переданного analogs
+        { key: 'flatCondition', label: 'Состояние отделки (1)', value: a.adjFlatCondition }, // <-- Теперь берётся из переданного analogs
+        { key: 'balcony', label: 'Балкон/лоджия (1)', value: a.adjBalcony }, // <-- Теперь берётся из переданного analogs
       ];
 
       for (const adj of adjustments) {
@@ -235,39 +98,44 @@ export const useAnalogCalculator = (
           current = nextValue;
         }
       }
-
       const finalAdjustedPerSqm = current;
 
       return {
-        pricePerSqm,
+        pricePerSqm, // <-- Это теперь будет правильно рассчитываться
         finalAdjustedPerSqm,
         steps,
       };
     });
-  }, [analogs]);
+  }, [analogs, tradeMultiplier, locationMultiplier]); // Добавляем зависимости, если используем вычисленные внутри
 
   const totalUnits = useMemo(() => {
+    // Теперь используем переданный 'analogs'
     return analogs.reduce((sum, a) => sum + (a.units ? parseNumber(a.units) : 0), 0);
   }, [analogs]);
 
   const weights = useMemo(() => {
+    // Теперь используем переданный 'analogs' и 'totalUnits'
     return analogs.map(a => totalUnits > 0 ? (a.units ? parseNumber(a.units) / totalUnits : 0) : 0);
   }, [analogs, totalUnits]);
 
   const weightedAvgPerSqm = useMemo(() => {
+    // Теперь используем 'computed' и 'weights', вычисленные на основе переданного 'analogs'
     return computed.reduce((sum, c, i) => sum + c.finalAdjustedPerSqm * (weights[i] || 0), 0);
   }, [computed, weights]);
 
-  const finalPriceThousand = weightedAvgPerSqm * parseNumber(evaluatedAreaSqm);
+  const finalPriceThousand = useMemo(() => {
+     // Используем parseNumber для evaluatedAreaSqm и computed, weights из useMemo
+     return weightedAvgPerSqm * parseNumber(evaluatedAreaSqm);
+  }, [weightedAvgPerSqm, evaluatedAreaSqm]);
 
-  // - Возвращаемые данные -
+  // Возвращаем только результаты расчетов
   return {
-    analogs,
-    computed,
-    totalUnits,
-    weights,
-    weightedAvgPerSqm,
-    finalPriceThousand,
-    fieldHandlers: {}, // Обработчики управляются в App.jsx
+    // analogs, // <-- Больше не возвращаем, так как управляется в App.jsx
+    computed, // <-- Теперь корректно рассчитывается
+    totalUnits, // <-- Теперь корректно рассчитывается
+    weights, // <-- Теперь корректно рассчитывается
+    weightedAvgPerSqm, // <-- Теперь корректно рассчитывается
+    finalPriceThousand, // <-- Теперь корректно рассчитывается
+    // fieldHandlers не возвращаем из хука
   };
 };
