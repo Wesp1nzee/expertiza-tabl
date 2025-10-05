@@ -1,13 +1,16 @@
 // src/data/dataSources.js
 // Центральное хранилище справочников для масштабируемой архитектуры
 
-// Импортируем универсальные функции
-import { parseNumber, parsePercentToNumber, calcAreaMultiplier } from '../utils/calculations';
-
-// Временно импортируем все данные из оригинального файла
-// В будущем все данные будут храниться здесь
+// Импортируем универсальные функции и константы
 import {
-  INITIAL_ANALOG,
+  parseNumber,
+  parsePercentToNumber,
+  calcAreaMultiplier,
+  INITIAL_ANALOG
+} from '../utils/calculations';
+
+// Импортируем справочники
+import {
   TRADE_DISCOUNTS,
   LOCATION_COEFFICIENTS,
   REGION_ALIASES_FOR_LOCATION,
@@ -299,137 +302,10 @@ const HANDBOOK_2024 = {
   }
 };
 
-// --- Справочник Жилые дома (пример иного типа недвижимости) ---
-const HANDBOOK_HOUSES_2025 = {
-  id: 'leifer_2025_houses',
-  name: 'Лейфер 2025 Жилые дома',
-  description: 'Справочник Лейфера по оценке жилых домов на 2025 год (демо)',
-  
-  data: {
-    // Инициальный аналог для домов отличается от квартир
-    INITIAL_ANALOG: {
-      priceOfferThousand: '',
-      areaSqm: '',
-      landAreaSqm: '', // Дополнительное поле для площади земли
-      adjRights: 1,
-      adjFinance: 1,
-      adjSaleDate: 1,
-      adjTrade: 1,
-      adjLocation: 1,
-      adjArea: 1,
-      adjLandArea: 1, // Корректировка на площадь земли
-      adjWalls: 1,
-      adjCommunications: 1,
-      adjHouseCondition: 1,
-      adjFloors: 1,
-      adjFlatCondition: 1,
-      adjBalcony: 1,
-      units: '',
-      __analogWall: '',
-      __analogHouseCondition: '',
-      __analogFlatCondition: '',
-      __analogBalcony: '',
-      __analogFloor: '',
-    },
-
-    // Торговые скидки для домов отличаются
-    TRADE_DISCOUNTS: {
-      'Москва': {
-        'Элитные дома': '12.5%',
-        'Дома повышенной комфортности': '11.2%',
-        'Дома среднего класса': '10.8%',
-        'Эконом класс': '9.5%',
-      },
-      'Московская область': {
-        'Элитные дома': '13.2%',
-        'Дома повышенной комфортности': '12.1%',
-        'Дома среднего класса': '11.5%',
-        'Эконом класс': '10.2%',
-      },
-    },
-
-    // Коэффициенты местоположения тоже другие
-    LOCATION_COEFFICIENTS: {
-      'Москва': {
-        'Элитные дома': {
-          'Престижные районы': 1.0,
-          'Центральные районы': 0.85,
-          'Спальные районы': 0.70,
-          'Окраины': 0.55,
-        },
-        'Дома повышенной комфортности, Дома среднего класса, Эконом класс': {
-          'Престижные районы': 1.0,
-          'Центральные районы': 0.82,
-          'Спальные районы': 0.68,
-          'Окраины': 0.52,
-        },
-      },
-      'Московская область': {
-        'Элитные дома': {
-          'Престижные поселки': 1.0,
-          'Развитые населенные пункты': 0.75,
-          'Обычные поселения': 0.60,
-          'Отдаленные районы': 0.45,
-        },
-        'Дома повышенной комфортности, Дома среднего класса, Эконом класс': {
-          'Престижные поселки': 1.0,
-          'Развитые населенные пункты': 0.72,
-          'Обычные поселения': 0.58,
-          'Отдаленные районы': 0.42,
-        },
-      },
-    },
-
-    // Минимальные данные для других коэффициентов
-    REGION_ALIASES_FOR_LOCATION: {},
-    WALL_MATERIAL_COEFFICIENTS: HANDBOOK_2025.data.WALL_MATERIAL_COEFFICIENTS, // Наследуем
-    REGION_ALIASES_FOR_WALLS: {},
-    HOUSE_CONDITION_COEFFICIENTS: HANDBOOK_2025.data.HOUSE_CONDITION_COEFFICIENTS, // Наследуем
-    REGION_ALIASES_FOR_HOUSE_CONDITION: {},
-    FLAT_CONDITION_COEFFICIENTS: HANDBOOK_2025.data.FLAT_CONDITION_COEFFICIENTS, // Наследуем
-    REGION_ALIASES_FOR_FLAT_CONDITION: {},
-    BALCONY_COEFFICIENTS: HANDBOOK_2025.data.BALCONY_COEFFICIENTS, // Наследуем
-    REGION_ALIASES_FOR_BALCONY: {},
-    FLOOR_COEFFICIENTS: HANDBOOK_2025.data.FLOOR_COEFFICIENTS, // Наследуем
-    REGION_ALIASES_FOR_FLOORS: {},
-  },
-
-  logic: {
-    // Наследуем базовую логику
-    ...HANDBOOK_2025.logic,
-    
-    // Переопределяем функции, которые специфичны для домов
-    resolveLocationFundGroupKey(selectedFund) {
-      if (selectedFund === 'Элитные дома') return 'Элитные дома';
-      return 'Дома повышенной комфортности, Дома среднего класса, Эконом класс';
-    },
-
-    // Добавляем новую функцию для расчета корректировки на площадь земли
-    calcLandAreaMultiplier(evaluatedLandArea, analogLandArea) {
-      const L_OO = Number(evaluatedLandArea);
-      const L_OA = Number(analogLandArea);
-      if (!Number.isFinite(L_OO) || !Number.isFinite(L_OA) || L_OO <= 0 || L_OA <= 0) return null;
-      // Для земли используем другую формулу
-      const raw = Math.pow(L_OO / L_OA, -0.04);
-      return Math.round(raw * 10000) / 10000;
-    },
-
-    // Переопределяем торговую скидку с немного другой логикой
-    calcTradeMultiplier(avgPercentNumber) {
-      if (avgPercentNumber === null) return null;
-      const fraction = avgPercentNumber / 100;
-      // Для домов применяем немного другую формулу
-      const multiplier = 1 - (fraction * 0.95); // Чуть меньший эффект торга
-      return Math.round(multiplier * 10000) / 10000;
-    },
-  }
-};
-
 // --- Центральное хранилище всех справочников ---
 export const DATA_SOURCES = {
   [HANDBOOK_2025.id]: HANDBOOK_2025,
-  [HANDBOOK_2024.id]: HANDBOOK_2024,
-  [HANDBOOK_HOUSES_2025.id]: HANDBOOK_HOUSES_2025,
+  [HANDBOOK_2024.id]: HANDBOOK_2024
 };
 
 // Экспортируем функцию для получения справочника по умолчанию

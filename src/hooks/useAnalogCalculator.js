@@ -1,37 +1,73 @@
-// hooks/useAnalogCalculator.js
+// src/hooks/useAnalogCalculator.js
 import { useState, useMemo, useCallback, useEffect } from 'react';
 
-export const useAnalogCalculator = (evaluatedAreaSqm, selectedRegion, selectedFund, selectedEvalWall, selectedEvalHouseCondition, selectedEvalFlatCondition, selectedEvalBalcony, selectedEvalFloor, selectedLocationClass, handbook) => {
-  const [analogs, setAnalogs] = useState(() => {
-    const initialAnalog = handbook?.data.INITIAL_ANALOG || {};
-    return [initialAnalog, initialAnalog, initialAnalog];
-  });
+import {
+  INITIAL_ANALOG,
+  TRADE_DISCOUNTS,
+  LOCATION_COEFFICIENTS,
+  parseNumber,
+  parsePercentToNumber,
+  calcTradeMultiplier,
+  calcAreaMultiplier,
+  resolveLocationRegionKey,
+  resolveLocationFundGroupKey,
+  calcWallsMultiplier,
+  resolveWallFundGroupKey,
+  resolveHouseConditionRegionKey,
+  resolveHouseConditionFundGroupKey,
+  calcHouseConditionMultiplier,
+  resolveFlatConditionRegionKey,
+  calcFlatConditionMultiplier,
+  resolveBalconyRegionKey,
+  calcBalconyMultiplier,
+  resolveFloorRegionKey,
+  resolveFloorFundGroupKey,
+  calcFloorMultiplier,
+} from '../utils/calculations';
 
-  // --- Вычисления ---
+export const useAnalogCalculator = (
+  evaluatedAreaSqm,
+  selectedRegion,
+  selectedFund,
+  selectedEvalWall,
+  selectedEvalHouseCondition,
+  selectedEvalFlatCondition,
+  selectedEvalBalcony,
+  selectedEvalFloor,
+  selectedLocationClass
+) => {
+  const [analogs, setAnalogs] = useState([
+    { ...INITIAL_ANALOG },
+    { ...INITIAL_ANALOG },
+    { ...INITIAL_ANALOG },
+  ]);
+
+  // - Вычисления -
   const tradeAvgPercent = useMemo(() => {
-    if (!handbook) return null;
-    const regionData = handbook.data.TRADE_DISCOUNTS[selectedRegion];
+    const regionData = TRADE_DISCOUNTS[selectedRegion];
     if (!regionData) return null;
-    return handbook.logic.parsePercentToNumber(regionData[selectedFund]);
-  }, [selectedRegion, selectedFund, handbook]);
+
+    const fundData = regionData[selectedFund];
+    if (!fundData) return null;
+
+    return parsePercentToNumber(fundData);
+  }, [selectedRegion, selectedFund]);
 
   const tradeMultiplier = useMemo(() => {
-    if (!handbook) return null;
-    return handbook.logic.calcTradeMultiplier(tradeAvgPercent);
-  }, [tradeAvgPercent, handbook]);
+    if (tradeAvgPercent === null) return null;
+    return calcTradeMultiplier(tradeAvgPercent);
+  }, [tradeAvgPercent]);
 
+  const locationRegionKey = resolveLocationRegionKey(selectedRegion);
+  const locationFundKey = resolveLocationFundGroupKey(selectedFund);
   const locationMultiplier = useMemo(() => {
-    if (!handbook) return null;
-    const regionKey = handbook.logic.resolveLocationRegionKey(selectedRegion);
-    if (!regionKey) return null;
-    const fundKey = handbook.logic.resolveLocationFundGroupKey(selectedFund);
-    const group = handbook.data.LOCATION_COEFFICIENTS[regionKey]?.[fundKey];
-    if (!group) return null;
-    const value = group[selectedLocationClass];
-    return Number.isFinite(value) ? value : null;
-  }, [selectedRegion, selectedFund, selectedLocationClass, handbook]);
+    if (!locationRegionKey || !locationFundKey || !selectedLocationClass) return null;
 
-  // --- Автоматические корректировки ---
+    const value = LOCATION_COEFFICIENTS[locationRegionKey]?.[locationFundKey]?.[selectedLocationClass];
+    return Number.isFinite(value) ? Math.round(value * 10000) / 10000 : null;
+  }, [locationRegionKey, locationFundKey, selectedLocationClass]);
+
+  // - Автоматические корректировки -
   useEffect(() => {
     if (tradeMultiplier !== null) {
       setAnalogs(prev => prev.map(a => ({ ...a, adjTrade: tradeMultiplier })));
@@ -45,17 +81,15 @@ export const useAnalogCalculator = (evaluatedAreaSqm, selectedRegion, selectedFu
   }, [locationMultiplier]);
 
   useEffect(() => {
-    if (!handbook) return;
-    const regionKey = handbook.logic.resolveWallsRegionKey(selectedRegion);
-    const fundKey = handbook.logic.resolveWallsFundGroupKey(selectedFund);
-    if (!regionKey || !fundKey) return;
+    const fundKey = resolveWallFundGroupKey(selectedFund);
+    if (!fundKey) return;
 
     setAnalogs(prev => {
       let changed = false;
       const next = prev.map(a => {
         const analogWall = a.__analogWall;
         if (!analogWall) return a;
-        const m = handbook.logic.calcWallsMultiplier(regionKey, fundKey, selectedEvalWall, analogWall);
+        const m = calcWallsMultiplier(fundKey, selectedEvalWall, analogWall);
         if (m === null) return a;
         if (a.adjWalls !== m) {
           changed = true;
@@ -65,12 +99,11 @@ export const useAnalogCalculator = (evaluatedAreaSqm, selectedRegion, selectedFu
       });
       return changed ? next : prev;
     });
-  }, [selectedRegion, selectedFund, selectedEvalWall, analogs.map(a => a.__analogWall || '').join('|'), handbook]);
+  }, [selectedFund, selectedEvalWall, analogs.map(a => a.__analogWall || '').join('|')]);
 
   useEffect(() => {
-    if (!handbook) return;
-    const regionKey = handbook.logic.resolveHouseConditionRegionKey(selectedRegion);
-    const fundKey = handbook.logic.resolveHouseConditionFundGroupKey(selectedFund);
+    const regionKey = resolveHouseConditionRegionKey(selectedRegion);
+    const fundKey = resolveHouseConditionFundGroupKey(selectedFund);
     if (!regionKey || !fundKey) return;
 
     setAnalogs(prev => {
@@ -78,7 +111,7 @@ export const useAnalogCalculator = (evaluatedAreaSqm, selectedRegion, selectedFu
       const next = prev.map(a => {
         const analogCondition = a.__analogHouseCondition;
         if (!analogCondition) return a;
-        const m = handbook.logic.calcHouseConditionMultiplier(regionKey, fundKey, selectedEvalHouseCondition, analogCondition);
+        const m = calcHouseConditionMultiplier(regionKey, fundKey, selectedEvalHouseCondition, analogCondition);
         if (m === null) return a;
         if (a.adjHouseCondition !== m) {
           changed = true;
@@ -88,11 +121,10 @@ export const useAnalogCalculator = (evaluatedAreaSqm, selectedRegion, selectedFu
       });
       return changed ? next : prev;
     });
-  }, [selectedRegion, selectedFund, selectedEvalHouseCondition, analogs.map(a => a.__analogHouseCondition || '').join('|'), handbook]);
+  }, [selectedRegion, selectedFund, selectedEvalHouseCondition, analogs.map(a => a.__analogHouseCondition || '').join('|')]);
 
   useEffect(() => {
-    if (!handbook) return;
-    const regionKey = handbook.logic.resolveFlatConditionRegionKey(selectedRegion);
+    const regionKey = resolveFlatConditionRegionKey(selectedRegion);
     if (!regionKey) return;
 
     setAnalogs(prev => {
@@ -100,7 +132,7 @@ export const useAnalogCalculator = (evaluatedAreaSqm, selectedRegion, selectedFu
       const next = prev.map(a => {
         const analogCondition = a.__analogFlatCondition;
         if (!analogCondition) return a;
-        const m = handbook.logic.calcFlatConditionMultiplier(regionKey, selectedEvalFlatCondition, analogCondition);
+        const m = calcFlatConditionMultiplier(regionKey, selectedEvalFlatCondition, analogCondition);
         if (m === null) return a;
         if (a.adjFlatCondition !== m) {
           changed = true;
@@ -110,19 +142,18 @@ export const useAnalogCalculator = (evaluatedAreaSqm, selectedRegion, selectedFu
       });
       return changed ? next : prev;
     });
-  }, [selectedRegion, selectedEvalFlatCondition, analogs.map(a => a.__analogFlatCondition || '').join('|'), handbook]);
+  }, [selectedRegion, selectedEvalFlatCondition, analogs.map(a => a.__analogFlatCondition || '').join('|')]);
 
   useEffect(() => {
-    if (!handbook) return;
-    const regionKey = handbook.logic.resolveBalconyRegionKey(selectedRegion);
-    if (!regionKey) return;
+    const balconyRegionKey = resolveBalconyRegionKey(selectedRegion);
+    if (!balconyRegionKey) return;
 
     setAnalogs(prev => {
       let changed = false;
       const next = prev.map(a => {
         const analogBalcony = a.__analogBalcony;
         if (analogBalcony !== 'есть' && analogBalcony !== 'нет') return a;
-        const m = handbook.logic.calcBalconyMultiplier(regionKey, selectedEvalBalcony === 'есть', analogBalcony === 'есть');
+        const m = calcBalconyMultiplier(balconyRegionKey, selectedEvalBalcony === 'есть', analogBalcony === 'есть');
         if (m === null) return a;
         if (a.adjBalcony !== m) {
           changed = true;
@@ -132,12 +163,11 @@ export const useAnalogCalculator = (evaluatedAreaSqm, selectedRegion, selectedFu
       });
       return changed ? next : prev;
     });
-  }, [selectedRegion, selectedEvalBalcony, analogs.map(a => a.__analogBalcony || '').join('|'), handbook]);
+  }, [selectedRegion, selectedEvalBalcony, analogs.map(a => a.__analogBalcony || '').join('|')]);
 
   useEffect(() => {
-    if (!handbook) return;
-    const regionKey = handbook.logic.resolveFloorRegionKey(selectedRegion);
-    const fundKey = handbook.logic.resolveFloorFundGroupKey(selectedFund);
+    const regionKey = resolveFloorRegionKey(selectedRegion);
+    const fundKey = resolveFloorFundGroupKey(selectedFund);
     if (!regionKey || !fundKey) return;
 
     setAnalogs(prev => {
@@ -145,7 +175,7 @@ export const useAnalogCalculator = (evaluatedAreaSqm, selectedRegion, selectedFu
       const next = prev.map(a => {
         const analogFloor = a.__analogFloor;
         if (!analogFloor) return a;
-        const m = handbook.logic.calcFloorMultiplier(regionKey, fundKey, selectedEvalFloor, analogFloor);
+        const m = calcFloorMultiplier(regionKey, fundKey, selectedEvalFloor, analogFloor);
         if (m === null) return a;
         if (a.adjFloors !== m) {
           changed = true;
@@ -155,14 +185,13 @@ export const useAnalogCalculator = (evaluatedAreaSqm, selectedRegion, selectedFu
       });
       return changed ? next : prev;
     });
-  }, [selectedRegion, selectedFund, selectedEvalFloor, analogs.map(a => a.__analogFloor || '').join('|'), handbook]);
+  }, [selectedRegion, selectedFund, selectedEvalFloor, analogs.map(a => a.__analogFloor || '').join('|')]);
 
   useEffect(() => {
-    if (!handbook) return;
     setAnalogs(prev => {
       let changed = false;
       const next = prev.map(a => {
-        const m = handbook.logic.calcAreaMultiplier(evaluatedAreaSqm, handbook.logic.parseNumber(a.areaSqm));
+        const m = calcAreaMultiplier(evaluatedAreaSqm, parseNumber(a.areaSqm));
         if (m === null) return a;
         if (a.adjArea !== m) {
           changed = true;
@@ -172,14 +201,13 @@ export const useAnalogCalculator = (evaluatedAreaSqm, selectedRegion, selectedFu
       });
       return changed ? next : prev;
     });
-  }, [evaluatedAreaSqm, analogs.map(a => a.areaSqm).join(','), handbook]);
+  }, [evaluatedAreaSqm, analogs.map(a => a.areaSqm).join(',')]);
 
-  // --- Результаты ---
+  // - Результаты -
   const computed = useMemo(() => {
-    if (!handbook) return [];
     return analogs.map((a) => {
-      const priceOffer = handbook.logic.parseNumber(a.priceOfferThousand);
-      const area = handbook.logic.parseNumber(a.areaSqm);
+      const priceOffer = parseNumber(a.priceOfferThousand);
+      const area = parseNumber(a.areaSqm);
       const pricePerSqm = area > 0 ? priceOffer / area : 0;
       const steps = [];
       let current = pricePerSqm;
@@ -189,74 +217,50 @@ export const useAnalogCalculator = (evaluatedAreaSqm, selectedRegion, selectedFu
         { key: 'rights', label: 'Права (1)', value: a.adjRights },
         { key: 'finance', label: 'Финансовые условия (1)', value: a.adjFinance },
         { key: 'saleDate', label: 'Дата продажи (1)', value: a.adjSaleDate },
-        { key: 'trade', label: 'Торг', value: a.adjTrade },
-        { key: 'location', label: 'Местоположение', value: a.adjLocation },
-        { key: 'area', label: 'Площадь квартиры', value: a.adjArea },
-        { key: 'walls', label: 'Материал стен', value: a.adjWalls },
-        { key: 'communications', label: 'Коммуникации', value: a.adjCommunications },
-        { key: 'houseCondition', label: 'Техсостояние дома', value: a.adjHouseCondition },
-        { key: 'floors', label: 'Этажность', value: a.adjFloors },
-        { key: 'flatCondition', label: 'Техсостояние квартиры', value: a.adjFlatCondition },
-        { key: 'balcony', label: 'Балкон/лоджия', value: a.adjBalcony },
+        { key: 'trade', label: 'Торги (1)', value: a.adjTrade },
+        { key: 'location', label: 'Местоположение (1)', value: a.adjLocation },
+        { key: 'area', label: 'Площадь (1)', value: a.adjArea },
+        { key: 'walls', label: 'Материал стен (1)', value: a.adjWalls },
+        { key: 'communications', label: 'Коммуникации (1)', value: a.adjCommunications },
+        { key: 'houseCondition', label: 'Техсостояние дома (1)', value: a.adjHouseCondition },
+        { key: 'floors', label: 'Этажность (1)', value: a.adjFloors },
+        { key: 'flatCondition', label: 'Состояние отделки (1)', value: a.adjFlatCondition },
+        { key: 'balcony', label: 'Балкон/лоджия (1)', value: a.adjBalcony },
       ];
 
-      adjustments.forEach(adj => {
-        current = current * handbook.logic.parseNumber(adj.value || 1);
-        steps.push({ ...adj, value: current });
-      });
+      for (const adj of adjustments) {
+        if (Number.isFinite(adj.value)) {
+          const nextValue = current * adj.value;
+          steps.push({ key: adj.key, label: adj.label, value: nextValue });
+          current = nextValue;
+        }
+      }
 
       const finalAdjustedPerSqm = current;
-      const units = handbook.logic.parseNumber(a.units);
-      return { pricePerSqm, steps, finalAdjustedPerSqm, units };
-    });
-  }, [analogs, handbook]);
 
-  const totalUnits = useMemo(() => computed.reduce((sum, c) => sum + c.units, 0), [computed]);
-  const weights = useMemo(() => computed.map(c => totalUnits > 0 ? c.units / totalUnits : 0), [computed, totalUnits]);
-  const weightedAvgPerSqm = useMemo(
-    () => computed.reduce((sum, c, i) => sum + c.finalAdjustedPerSqm * (weights[i] || 0), 0),
-    [computed, weights]
-  );
-  const finalPriceThousand = weightedAvgPerSqm * evaluatedAreaSqm;
-
-  // --- Обработчики ---
-  const updateAnalog = useCallback((idx, field, value) => {
-    setAnalogs(prev => {
-      const next = [...prev];
-      next[idx] = { ...next[idx], [field]: value };
-      return next;
-    });
-  }, []);
-
-  const fieldHandlers = useMemo(() => {
-    const handlers = {};
-    for (let i = 0; i < 3; i++) {
-      handlers[i] = {
-        priceOfferThousand: (value) => updateAnalog(i, 'priceOfferThousand', value),
-        areaSqm: (value) => updateAnalog(i, 'areaSqm', value),
-        adjRights: (value) => updateAnalog(i, 'adjRights', value),
-        adjFinance: (value) => updateAnalog(i, 'adjFinance', value),
-        adjSaleDate: (value) => updateAnalog(i, 'adjSaleDate', value),
-        adjTrade: (value) => updateAnalog(i, 'adjTrade', value),
-        adjLocation: (value) => updateAnalog(i, 'adjLocation', value),
-        adjArea: (value) => updateAnalog(i, 'adjArea', value),
-        adjWalls: (value) => updateAnalog(i, 'adjWalls', value),
-        adjCommunications: (value) => updateAnalog(i, 'adjCommunications', value),
-        adjHouseCondition: (value) => updateAnalog(i, 'adjHouseCondition', value),
-        adjFloors: (value) => updateAnalog(i, 'adjFloors', value),
-        adjFlatCondition: (value) => updateAnalog(i, 'adjFlatCondition', value),
-        adjBalcony: (value) => updateAnalog(i, 'adjBalcony', value),
-        units: (value) => updateAnalog(i, 'units', value),
-        __analogWall: (value) => updateAnalog(i, '__analogWall', value),
-        __analogHouseCondition: (value) => updateAnalog(i, '__analogHouseCondition', value),
-        __analogFlatCondition: (value) => updateAnalog(i, '__analogFlatCondition', value),
-        __analogBalcony: (value) => updateAnalog(i, '__analogBalcony', value),
-        __analogFloor: (value) => updateAnalog(i, '__analogFloor', value),
+      return {
+        pricePerSqm,
+        finalAdjustedPerSqm,
+        steps,
       };
-    }
-    return handlers;
-  }, [updateAnalog]);
+    });
+  }, [analogs]);
 
+  const totalUnits = useMemo(() => {
+    return analogs.reduce((sum, a) => sum + (a.units ? parseNumber(a.units) : 0), 0);
+  }, [analogs]);
+
+  const weights = useMemo(() => {
+    return analogs.map(a => totalUnits > 0 ? (a.units ? parseNumber(a.units) / totalUnits : 0) : 0);
+  }, [analogs, totalUnits]);
+
+  const weightedAvgPerSqm = useMemo(() => {
+    return computed.reduce((sum, c, i) => sum + c.finalAdjustedPerSqm * (weights[i] || 0), 0);
+  }, [computed, weights]);
+
+  const finalPriceThousand = weightedAvgPerSqm * parseNumber(evaluatedAreaSqm);
+
+  // - Возвращаемые данные -
   return {
     analogs,
     computed,
@@ -264,6 +268,6 @@ export const useAnalogCalculator = (evaluatedAreaSqm, selectedRegion, selectedFu
     weights,
     weightedAvgPerSqm,
     finalPriceThousand,
-    fieldHandlers
+    fieldHandlers: {}, // Обработчики управляются в App.jsx
   };
 };
