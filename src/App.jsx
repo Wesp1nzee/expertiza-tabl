@@ -621,11 +621,11 @@ const App = () => {
                 return (
                   <div key={i} style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                     <AnalogInput
-                      value={a.adjFlatCondition}
+                      value={a.units}
                       step="1"
-                      placeholder="1.0000"
-                      onChange={fieldHandlers[i].adjFlatCondition}
-                      resultValue="0"
+                      placeholder="1"
+                      onChange={fieldHandlers[i].units}
+                      resultValue={formatNumber(parseNumber(a.units))}
                       label="="
                       isMobile={isMobile}
                     />
