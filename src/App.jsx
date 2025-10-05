@@ -583,7 +583,7 @@ const App = () => {
                     step="0.0001"
                     placeholder="1.0000"
                     onChange={fieldHandlers[i][row.field]}
-                    resultValue={formatNumber(computed[i].steps.find(s => s.key === row.field)?.value)}
+                    resultValue=""
                     label="="
                     isMobile={isMobile}
                   />
@@ -669,9 +669,6 @@ const App = () => {
             />
           </tbody>
         </table>
-      </div>
-      <div style={noteStyle}>
-        <p><strong>Примечание:</strong> Корректировка на материал стен не зависит от региона и рассчитывается только на основе фонда.</p>
       </div>
     </div>
   );

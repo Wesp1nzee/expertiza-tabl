@@ -59,13 +59,11 @@ export const useAnalogCalculator = (
   const locationRegionKey = resolveLocationRegionKey(selectedRegion);
   const locationFundKey = resolveLocationFundGroupKey(selectedFund);
   const locationMultiplier = useMemo(() => {
-    // Используем статически импортированные LOCATION_COEFFICIENTS
     if (!locationRegionKey || !locationFundKey || !selectedLocationClass) return null;
     const value = LOCATION_COEFFICIENTS[locationRegionKey]?.[locationFundKey]?.[selectedLocationClass];
     return Number.isFinite(value) ? Math.round(value * 10000) / 10000 : null;
   }, [locationRegionKey, locationFundKey, selectedLocationClass]);
-
-  // --- Результаты (вычисления на основе переданного 'analogs') ---
+  
   const computed = useMemo(() => {
     // Теперь используем переданный 'analogs'
     return analogs.map((a) => {
@@ -101,7 +99,7 @@ export const useAnalogCalculator = (
       const finalAdjustedPerSqm = current;
 
       return {
-        pricePerSqm, // <-- Это теперь будет правильно рассчитываться
+        pricePerSqm, 
         finalAdjustedPerSqm,
         steps,
       };
@@ -119,23 +117,19 @@ export const useAnalogCalculator = (
   }, [analogs, totalUnits]);
 
   const weightedAvgPerSqm = useMemo(() => {
-    // Теперь используем 'computed' и 'weights', вычисленные на основе переданного 'analogs'
     return computed.reduce((sum, c, i) => sum + c.finalAdjustedPerSqm * (weights[i] || 0), 0);
   }, [computed, weights]);
-
+  console.log('weightedAvgPerSqm', weightedAvgPerSqm);
+  
   const finalPriceThousand = useMemo(() => {
-     // Используем parseNumber для evaluatedAreaSqm и computed, weights из useMemo
      return weightedAvgPerSqm * parseNumber(evaluatedAreaSqm);
   }, [weightedAvgPerSqm, evaluatedAreaSqm]);
-
-  // Возвращаем только результаты расчетов
+  console.log('finalPriceThousand', finalPriceThousand);
   return {
-    // analogs, // <-- Больше не возвращаем, так как управляется в App.jsx
-    computed, // <-- Теперь корректно рассчитывается
-    totalUnits, // <-- Теперь корректно рассчитывается
-    weights, // <-- Теперь корректно рассчитывается
-    weightedAvgPerSqm, // <-- Теперь корректно рассчитывается
-    finalPriceThousand, // <-- Теперь корректно рассчитывается
-    // fieldHandlers не возвращаем из хука
+    computed,
+    totalUnits, 
+    weights, 
+    weightedAvgPerSqm, 
+    finalPriceThousand, 
   };
 };
