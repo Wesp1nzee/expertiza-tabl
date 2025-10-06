@@ -37,11 +37,6 @@ export const useAnalogCalculator = (
   selectedEvalFloor,
   selectedLocationClass
 ) => {
-  // Внутреннее состояние 'analogs' удаляется
-  // const [analogs, setAnalogs] = useState([...]); // <-- УДАЛЕНО
-
-  // Вычисления остаются теми же, но теперь они зависят от переданного 'analogs'
-
   const tradeAvgPercent = useMemo(() => {
     // Используем статически импортированные TRADE_DISCOUNTS
     const regionData = TRADE_DISCOUNTS[selectedRegion];
@@ -104,27 +99,23 @@ export const useAnalogCalculator = (
         steps,
       };
     });
-  }, [analogs, tradeMultiplier, locationMultiplier]); // Добавляем зависимости, если используем вычисленные внутри
+  }, [analogs, tradeMultiplier, locationMultiplier]);
 
   const totalUnits = useMemo(() => {
-    // Теперь используем переданный 'analogs'
     return analogs.reduce((sum, a) => sum + (a.units ? parseNumber(a.units) : 0), 0);
   }, [analogs]);
 
   const weights = useMemo(() => {
-    // Теперь используем переданный 'analogs' и 'totalUnits'
     return analogs.map(a => totalUnits > 0 ? (a.units ? parseNumber(a.units) / totalUnits : 0) : 0);
   }, [analogs, totalUnits]);
 
   const weightedAvgPerSqm = useMemo(() => {
     return computed.reduce((sum, c, i) => sum + c.finalAdjustedPerSqm * (weights[i] || 0), 0);
   }, [computed, weights]);
-  console.log('weightedAvgPerSqm', weightedAvgPerSqm);
   
   const finalPriceThousand = useMemo(() => {
      return weightedAvgPerSqm * parseNumber(evaluatedAreaSqm);
   }, [weightedAvgPerSqm, evaluatedAreaSqm]);
-  console.log('finalPriceThousand', finalPriceThousand);
   return {
     computed,
     totalUnits, 
